@@ -1,0 +1,200 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>PouchDB Intro</title>
+	</head>
+	<body>
+		<h1>PouchDB Intro</h1>
+		<!-- Collect user input -->
+		<form id="formUser">
+			<p><label for="inputLast">Last Name	</label><input type="text" placeholder="Campos"		name="inputLast" 	id="inputLast"> </p>
+			<p><label for="inputFirst">First Name: </label><input type="text" placeholder="Victor" 	name="inputFirst" 	id="inputFirst"></p>
+			<p><label for="inputUID">Username: 	</label><input type="text" placeholder="vcampos" 	name="inputUID" 	id="inputUID">  </p>
+			<input type="button" value="Save Name"  id="btnAddNames">
+			<input type="reset"  value="Clear fields">
+			<input type="button" value="Show Names" id="btnShowNames">
+		</form>
+		<!-- Display results -->
+		<div id="divResults"></div>
+		
+		<!-- JavaScript libraries -->
+		<script src="https://code.jquery.com/jquery-3.1.0.min.js"></script>
+		<script src="https://github.com/pouchdb/pouchdb/releases/download/5.4.5/pouchdb-5.4.5.min.js"></script>
+		<script>
+			// Create variable for database
+			var db;
+
+			// Initialize PouchDB database
+			function initDB() {
+				db = new PouchDB("savedUsers");
+				db.info(function(error, result) {
+					if(!error) {
+						console.log(result);
+					} else {
+						console.log(error);
+					}
+				});
+
+				return db;
+			} //END initDB()
+			
+			initDB();
+			
+			// Functionality to add a user
+			$("#btnAddNames").on("click", addUsers);
+			function addUsers() {					
+				var uLast 	= $("#inputLast").val(),
+					uFirst 	= $("#inputFirst").val(),
+					uUID 	= $("#inputUID").val();
+					
+				var aUser = {
+					"_id"   : uLast,
+					"nameFirst" : uFirst,
+					"nameUID"  : uUID
+				};
+				
+				db.put(aUser, function(error, result) {
+					if(!error) {
+						$("#divResults").html("<p>Saved!</p>");
+						showUsers();
+						console.log(result);
+						clearFields();
+					} else {
+						$("#divResults").html("<p>&iexcl;Error!</p>");
+						console.log(error);
+					}
+				});
+			} //END addUsers();
+			
+			// To clear fields
+			function clearFields() {
+				$("#formUser")[0].reset();
+			} //END clearFields()
+			
+			// Get the database of user names ready
+			$("#btnShowNames").on("click", showUsers);
+			function showUsers() {
+				db.allDocs({"include_docs" : true, "ascending" : true}, function(error, result) {
+					showTableOfUsers(result.rows);
+				});
+			} //END showUsers()
+			
+			// Display the user names in a table
+			function showTableOfUsers(data) {
+				var str  = "<p><table border='1' id='userTable'>";
+					str += "<tr><th>Last Name</th><th>First Name</th><th>UID</th><th>&nbsp;</th></tr>";
+						for(var i = 0; i < data.length; i++) {
+							str += "<tr><td>" + data[i].id + 
+								"</td><td>" + data[i].doc.nameFirst + 
+								"</td><td>" + data[i].doc.nameUID +
+								"</td><td class='editPencil'>&#x270E;" +
+								"</td></tr>";
+						}
+					str += "</table></p>";
+					
+					// Set up delete user button/field
+					str += "<hr>";
+					str += "<input type='text' placeholder='Lastname' id='inputDeleteName'><button id='btnDeleteNames'>Delete Name</button>";
+					
+					// Set up modify user button/fields
+					str += "<hr>";
+					str += "<button id='btnUpdateName'>Update Name</button><br><input type='text' placeholder='Last Name' id='updateLName'><br><input type='text' placeholder='First Name' id='updateFName'><br><input type='text' placeholder='Username' id='updateUID'>";
+					
+					// Set up delete database button
+					str += "<hr><hr>";
+					str += "<button id='btnDeleteDB'>Delete DB</button>";
+				$("#divResults").html(str);
+			} //END showTableOfUsers();
+			
+			// Functionality to delete a user
+			$("body").on("click", "#btnDeleteNames", deleteUsers);
+			function deleteUsers() {
+				var theUser = $("#inputDeleteName").val();
+				db.get(theUser, function(error, result) {
+					db.remove(result, function(error, result) {
+						if(result) {
+							console.log(result);
+							showUsers();
+						} else {
+							console.log(error);
+							$("#inputDeleteName").val("");
+							alert("The user '" + theUser + "' does not exist!");
+						}
+					});
+				});
+			} //END deleteUsers()
+			
+			// Functionality to prepare to edit a user
+			$("#divResults").on("click", ".editPencil", function() { updateNamePrep($(this).parent()) });
+			function updateNamePrep(thisObj) {
+				var tmpLName = thisObj.find("td:eq(0)").text(),
+					tmpFName = thisObj.find("td:eq(1)").text(),
+					tmpUID   = thisObj.find("td:eq(2)").text();
+				$("#updateLName").val(tmpLName);
+				$("#updateFName").val(tmpFName);
+				$("#updateUID").val(tmpUID);
+			} //END updateNamePrep()
+			
+			// Functionality to edit a user
+			$("body").on("click", "#btnUpdateName", updateName);
+			function updateName() {
+				var newLName = $("#updateLName").val(),
+					newFName = $("#updateFName").val(),
+					newUID   = $("#updateUID").val();
+				db.get(newLName, function(error, result) {
+					if(error) {
+						console.log(error);
+						$("#updateLName").val(""),
+						$("#updateFName").val(""),
+						$("#updateUID").val("");
+						alert("The user '" + newLName + "' does not exist!");
+					} else {
+						console.log(result);
+						db.put({
+							"_id"		: newLName,
+							"nameFirst"	: newFName,
+							"nameUID"	: newUID,
+							"_rev"		: result._rev
+						}, function(error, result) { showUsers()} );
+					}
+				});
+			} //END updateName()
+			
+			// Functionality to delete the database
+			$("body").on("click", "#btnDeleteDB", function() { deleteDB() });
+			function deleteDB() {
+				switch(confirm("Do you want to delete the Database?")) {
+					case true:
+						db.destroy(function(error, result) {
+							if(error) {
+								console.log(error);
+							} else {
+								console.log(result);
+								initDB();
+								showUsers();
+							}
+						});
+						alert("Deleted!");
+						break;
+					case false:
+						alert("Cancelled");
+						break;
+					default:
+						alert("No DB to delete");
+						break;
+				}
+			}
+		</script>
+		<!-- 
+			Author:		vmcampos <vmcampos@vmcampos.com>
+			Project:	PouchDB Intro
+			Version:	1.0.20160730
+			Date:		2016-07-30
+			Desc:		An introduction to PouchDB - how to create and destroy databases;
+						how to add a document to the database; how to delete documents;
+						how to modify documents; how to retrieve and display documents.
+						Uses PouchDB library and jQuery.
+		-->
+	</body>
+</html>
