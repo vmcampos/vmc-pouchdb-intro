@@ -8,33 +8,31 @@
 		<h1>PouchDB Intro</h1>
 		<!-- Collect user input -->
 		<form id="formUser">
-			<p><label for="inputLast">Last Name	</label><input type="text" placeholder="Campos"		name="inputLast" 	id="inputLast"> </p>
-			<p><label for="inputFirst">First Name: </label><input type="text" placeholder="Victor" 	name="inputFirst" 	id="inputFirst"></p>
-			<p><label for="inputUID">Username: 	</label><input type="text" placeholder="vcampos" 	name="inputUID" 	id="inputUID">  </p>
+			<p><label for="inputLast">Last Name	</label><input type="text" 		placeholder="Campos"	name="inputLast" 	id="inputLast"> </p>
+			<p><label for="inputFirst">First Name: </label><input type="text"	placeholder="Victor" 	name="inputFirst" 	id="inputFirst"></p>
+			<p><label for="inputUID">Username: 	</label><input type="text"		placeholder="vcampos" 	name="inputUID" 	id="inputUID">  </p>
 			<input type="button" value="Save Name"  id="btnAddNames">
 			<input type="reset"  value="Clear fields">
 			<input type="button" value="Show Names" id="btnShowNames">
 		</form>
 		<!-- Display results -->
-		<div id="divResults"></div>
+		<div id="divResults">&nbsp;</div>
 		
 		<!-- JavaScript libraries -->
-		<script src="https://code.jquery.com/jquery-3.1.0.min.js"></script>
-		<script src="https://github.com/pouchdb/pouchdb/releases/download/5.4.5/pouchdb-5.4.5.min.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/pouchdb@8.0.1/dist/pouchdb.min.js"></script>
 		<script>
+
 			// Create variable for database
-			var db;
+			let db;
 
 			// Initialize PouchDB database
 			function initDB() {
 				db = new PouchDB("savedUsers");
-				db.info(function(error, result) {
-					if(!error) {
-						console.log(result);
-					} else {
-						console.log(error);
-					}
-				});
+
+				// See some info
+				db.info().then(function(result){
+					console.log("My database:", result.db_name, result.doc_count, result.update_seq);
+				}).catch(function (err){ console.log("Error creating DB:", err); });
 
 				return db;
 			} //END initDB()
@@ -42,49 +40,62 @@
 			initDB();
 			
 			// Functionality to add a user
-			$("#btnAddNames").on("click", addUsers);
-			function addUsers() {					
-				var uLast 	= $("#inputLast").val(),
-					uFirst 	= $("#inputFirst").val(),
-					uUID 	= $("#inputUID").val();
-					
-				var aUser = {
-					"_id"   : uLast,
-					"nameFirst" : uFirst,
-					"nameUID"  : uUID
-				};
+			function addUsers() {
+				console.log("addUsers() is running");
+
+				// Read the <input> fields
+				let uLast	= document.querySelector("#inputLast").value,
+					uFirst	= document.querySelector("#inputFirst").value,
+					uUID	= document.querySelector("#inputUID").value;
 				
-				db.put(aUser, function(error, result) {
-					if(!error) {
-						$("#divResults").html("<p>Saved!</p>");
-						showUsers();
-						console.log(result);
-						clearFields();
-					} else {
-						$("#divResults").html("<p>&iexcl;Error!</p>");
-						console.log(error);
-					}
-				});
+				// Convert uLast (_id) to lowecase
+				uLast.toLowerCase();
+				
+				// Bundle in JSON format, for PouchDB
+				let aUser = {
+					"_id"		: uLast,
+					"nameFirst"	: uFirst,
+					"nameUID"	: uUID
+				};
+
+				// Put into PouchDB
+				db.put(aUser).then(function (result){
+					console.log("Saving data:", result.ok);
+					// Update placeholder <div>
+					document.querySelector("#divResults").innerHTML = "<p>Saved!</p>";
+					showUsers();
+					clearFields();
+				}).catch(function (err){
+					console.log("Error saving:", err);
+					window.alert("Please use anoter Last Name");
+				}); // END .put()
 			} //END addUsers();
+			document.querySelector("#btnAddNames").addEventListener("click", addUsers);
 			
 			// To clear fields
 			function clearFields() {
-				$("#formUser")[0].reset();
+				console.log("Clearing form...");
+				document.querySelector("#formUser").reset();
 			} //END clearFields()
 			
 			// Get the database of user names ready
-			$("#btnShowNames").on("click", showUsers);
 			function showUsers() {
-				db.allDocs({"include_docs" : true, "ascending" : true}, function(error, result) {
-					showTableOfUsers(result.rows);
-				});
+				// Pull all rows, including all fields, sort A-Z
+				db.allDocs({"include_docs" : true, "ascending" : true}).then(function (data){
+					console.log("Getting data:", data.rows.length, "records");
+					// Pass on the data to the Function to create/show the <table>
+					showTableOfUsers(data.rows);
+				}).catch(function (err){console.log("Error getting data:", err);});
 			} //END showUsers()
+			document.querySelector("#btnShowNames").addEventListener("click", showUsers);
 			
 			// Display the user names in a table
 			function showTableOfUsers(data) {
-				var str  = "<p><table border='1' id='userTable'>";
+				// Build a String that holds the <table> of users
+				let str  = "<p><table border='1' id='userTable'>";
 					str += "<tr><th>Last Name</th><th>First Name</th><th>UID</th><th>&nbsp;</th></tr>";
-						for(var i = 0; i < data.length; i++) {
+						// Loop for i number of rows of data
+						for(let i = 0; i < data.length; i++) {
 							str += "<tr><td>" + data[i].id + 
 								"</td><td>" + data[i].doc.nameFirst + 
 								"</td><td>" + data[i].doc.nameUID +
@@ -99,102 +110,136 @@
 					
 					// Set up modify user button/fields
 					str += "<hr>";
-					str += "<button id='btnUpdateName'>Update Name</button><br><input type='text' placeholder='Last Name' id='updateLName'><br><input type='text' placeholder='First Name' id='updateFName'><br><input type='text' placeholder='Username' id='updateUID'>";
+					str += "<button id='btnUpdateName'>Update Name</button><br><input disabled type='text' placeholder='Last Name' id='updateLName'><br><input type='text' placeholder='First Name' id='updateFName'><br><input type='text' placeholder='Username' id='updateUID'>";
 					
 					// Set up delete database button
 					str += "<hr><hr>";
 					str += "<button id='btnDeleteDB'>Delete DB</button>";
-				$("#divResults").html(str);
+				
+				// Display <table> in the placeholder <div>
+				document.querySelector("#divResults").innerHTML = str;
+
+				// Set up Event Listeners for dynamic elements, following
+				// To delete a user
+				document.querySelector("#btnDeleteNames").addEventListener("click", deleteUsers);
+
+				// To prep a user to be updated
+				// Gather list of clickable rows
+				let tableRows = document.querySelectorAll("tr .editPencil");
+				// Conditional For Loop to make each row clickable
+				for (let aRow of tableRows) {
+					// After click, run updateNamePrep(this) and pass on "this" Parent row info
+					aRow.addEventListener("click", function () { updateNamePrep(this.parentNode); }); 
+				} // END FOR loop adding listeners
+
+				// To update a user
+				document.querySelector("#btnUpdateName").addEventListener("click", updateName);
+
+				// To delete the whole database
+				document.querySelector("#btnDeleteDB").addEventListener("click", deleteDB);
 			} //END showTableOfUsers();
 			
 			// Functionality to delete a user
-			$("body").on("click", "#btnDeleteNames", deleteUsers);
 			function deleteUsers() {
-				var theUser = $("#inputDeleteName").val();
-				db.get(theUser, function(error, result) {
-					db.remove(result, function(error, result) {
-						if(result) {
-							console.log(result);
-							showUsers();
-						} else {
-							console.log(error);
-							$("#inputDeleteName").val("");
-							alert("The user '" + theUser + "' does not exist!");
-						}
-					});
-				});
+				console.log("deleteUsers() is running");
+
+				// Read who to delete, based on Last Name (_id)
+				let theUser = document.querySelector("#inputDeleteName").value;
+				
+				// Get the record, delete it, redraw <table>
+				db.get(theUser).then(function (result){
+					console.log("About to delete:", result);
+					db.remove(result).then(function (response){
+						console.log("Deleted user:", response.ok);
+						showUsers();
+					}); // END .remove();
+				}).catch(function (err){
+					console.log("Error getting user to delete:", err);
+					document.querySelector("#inputDeleteName").value = "";
+					window.alert("The user '" + theUser + "' does not exist!");
+				}); // END .get()
 			} //END deleteUsers()
 			
 			// Functionality to prepare to edit a user
-			$("#divResults").on("click", ".editPencil", function() { updateNamePrep($(this).parent()) });
-			function updateNamePrep(thisObj) {
-				var tmpLName = thisObj.find("td:eq(0)").text(),
-					tmpFName = thisObj.find("td:eq(1)").text(),
-					tmpUID   = thisObj.find("td:eq(2)").text();
-				$("#updateLName").val(tmpLName);
-				$("#updateFName").val(tmpFName);
-				$("#updateUID").val(tmpUID);
+			function updateNamePrep(thisRow) {
+				// Data comes from showTableOfUsers()
+				console.log("Prepping this row:", thisRow);
+
+				// Gather list of <td> of clicked row
+				let tdData = thisRow.querySelectorAll("td");
+
+				// Add that data to the waiting <input>s
+				document.querySelector("#updateLName").value 	= tdData[0].innerText;
+				document.querySelector("#updateFName").value 	= tdData[1].innerText;
+				document.querySelector("#updateUID").value 		= tdData[2].innerText;
 			} //END updateNamePrep()
 			
 			// Functionality to edit a user
-			$("body").on("click", "#btnUpdateName", updateName);
 			function updateName() {
-				var newLName = $("#updateLName").val(),
-					newFName = $("#updateFName").val(),
-					newUID   = $("#updateUID").val();
-				db.get(newLName, function(error, result) {
-					if(error) {
-						console.log(error);
-						$("#updateLName").val(""),
-						$("#updateFName").val(""),
-						$("#updateUID").val("");
-						alert("The user '" + newLName + "' does not exist!");
-					} else {
-						console.log(result);
-						db.put({
-							"_id"		: newLName,
-							"nameFirst"	: newFName,
-							"nameUID"	: newUID,
-							"_rev"		: result._rev
-						}, function(error, result) { showUsers()} );
-					}
-				});
+				console.log("updateName() is running");
+				
+				// Get new user data
+				let newLName 	= document.querySelector("#updateLName").value,
+					newFName 	= document.querySelector("#updateFName").value,
+					newUID		= document.querySelector("#updateUID").value;
+
+				// First, get the user data to update, then proceed to update it
+				db.get(newLName).then(function (result){
+					// Put the new data back, including _rev for updates
+					db.put({
+						"_id"		: result._id,
+						"_rev"		: result._rev,
+						"nameFirst"	: newFName,
+						"nameUID"	: newUID
+					}).then(function (response){
+						console.log("Updated user:", response.ok);
+						showUsers();
+					}); // END .put()
+				}).catch(function (err){
+					console.log("Error updating user:", err);
+					// Clear fields to try again
+					document.querySelector("#updateLName").value	= "";
+					document.querySelector("#updateFName").value 	= "";
+					document.querySelector("#updateUID").value		= "";
+					// Give an alert about the error
+					window.alert("The user '" + newLName + "' does not exist!");
+				}); // END .catch()
 			} //END updateName()
 			
 			// Functionality to delete the database
-			$("body").on("click", "#btnDeleteDB", function() { deleteDB() });
 			function deleteDB() {
-				switch(confirm("Do you want to delete the Database?")) {
+				console.log("About to delete the PouchDB database");
+				// First, ask to confirm deletion, then proceed to delete
+				switch(window.confirm("Do you want to delete the Database?")) {
 					case true:
-						db.destroy(function(error, result) {
-							if(error) {
-								console.log(error);
-							} else {
-								console.log(result);
-								initDB();
-								showUsers();
-							}
-						});
-						alert("Deleted!");
+						db.destroy().then(function (result){
+							console.log("PouchDB deleted");
+							initDB();
+							showUsers();
+						}).catch(function (err){console.log("Error deleting DB", err);});
+						window.alert("All Names Deleted!");
 						break;
 					case false:
-						alert("Cancelled");
+						console.log("Declined to delete")
+						window.alert("Thank you for not deleting everything.");
 						break;
 					default:
-						alert("No DB to delete");
+						console.log("idk");
+						window.alert("No DB to delete");
 						break;
-				}
-			}
+				} // END swith()
+			} // END deleteDB()
+
 		</script>
 		<!-- 
 			Author:		vmcampos <vmcampos@vmcampos.com>
 			Project:	PouchDB Intro
-			Version:	1.0.20160730
-			Date:		2016-07-30
+			Version:	2.0.20240505
+			Date:		2024-05-06
 			Desc:		An introduction to PouchDB - how to create and destroy databases;
 						how to add a document to the database; how to delete documents;
 						how to modify documents; how to retrieve and display documents.
-						Uses PouchDB library and jQuery.
+						Uses PouchDB library and and vanilla JavaScript
 		-->
 	</body>
 </html>
